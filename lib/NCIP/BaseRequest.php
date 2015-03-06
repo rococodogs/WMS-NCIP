@@ -1,9 +1,18 @@
 <?php
 namespace WMS\NCIP;
 
-use WMS\NCIP, \XMLWriter;
+use WMS\NCIP;
+use XMLWriter;
+use OCLC\Auth\WSKey, OCLC\User;
+use Guzzle\Http\Client, GuzzleHttp\Exception\RequestException;
 
 abstract class BaseRequest {
+
+    /**
+     *  method to create the request URL for the NCIP request
+     */
+
+    abstract protected function getRequestURL();
 
     /**
      *  Though a request's <InitiationHeader> element needs a To _and_ From AgencyID,
@@ -25,8 +34,10 @@ abstract class BaseRequest {
      *  @param mixed    agency ID to use
      */
 
-    public function __construct( $agencyID ) {
+    public function __construct( $agencyID, \OCLC\Auth\WSKey $wskey, \OCLC\User $user ) {
         $this->agencyID = $agencyID;
+        $this->wskey = $wskey;
+        $this->user = $user;
     }
 
     /**
@@ -66,6 +77,26 @@ abstract class BaseRequest {
         $xml->endElement();
 
         return $xml->outputMemory();
+    }
+
+    public function sendRequest( $body ) {
+        $url = $this->getRequestURL();
+        $options = array( 'user' => $this->user );
+        $headers = array(
+            'Authorization' => $this->wskey->getHMACSignature( 'POST', $url, $options ),
+            'Content-type' => 'application/xml'
+        );
+
+        $client = new Client();
+        $client->getClient()->setDefaultOption( 'config/curl/' . CURLOPT_SSLVERSION, 3 );
+        
+        try {
+            $response = $client->post( $url, array(
+                'headers' => $headers,
+                'body' => $body
+            ) );
+
+        } catch( Exception $e ) {}
     }
 
     /**
