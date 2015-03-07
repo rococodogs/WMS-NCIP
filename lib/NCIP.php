@@ -1,7 +1,7 @@
 <?php
 namespace WMS;
 
-class WMS {
+class NCIP {
 
     const XMLNS = 'http://www.niso.org/2008/ncip';
     const XMLNS_NCIP = 'http://www.niso.org/2008/ncip';
