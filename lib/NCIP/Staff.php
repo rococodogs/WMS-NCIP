@@ -25,6 +25,13 @@ class Staff extends BaseRequest {
         parent::__construct( $settings );
     }
 
+    /**
+     *  gets the URL to send the request
+     *
+     *  @return  string
+     *  @throws  Exception  if no datacenter is set
+     */
+
     protected function getRequestURL() {
         if ( !isset( $this->datacenter) ) { throw new \Exception( "No datacenter set" ); }
         return 'https://circ.' . $this->datacenter . 'worldcat.org';
