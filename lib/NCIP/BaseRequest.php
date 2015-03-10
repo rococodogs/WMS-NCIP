@@ -1,4 +1,14 @@
 <?php
+/**
+ *  abstract  function getRequestURL();
+ *  public    function __construct( array $settings );
+ *  public    function createRequest( string $actionName, callable $callback );
+ *  protected function appendInitiationHeader( \XMLWriter $xml )
+ *  protected function appendItemID( \XMLWriter $xml, mixed $itemID[, $agencyID = null] )
+ *  protected function appendUserID( \XMLWriter $xml, mixed $userID[, $agencyID = null] )
+ *  protected function xmlToObject( string $xmlDocument )
+ */
+
 namespace WMS\NCIP;
 
 use WMS\NCIP;
@@ -31,13 +41,17 @@ abstract class BaseRequest {
     /**
      *  constructor for NCIP request.  
      *
-     *  @param mixed    agency ID to use
+     *  @param mixed    options array
      */
 
-    public function __construct( $agencyID, \OCLC\Auth\WSKey $wskey, \OCLC\User $user ) {
-        $this->agencyID = $agencyID;
-        $this->wskey = $wskey;
-        $this->user = $user;
+    public function __construct( $settings = array()  ) {
+        if ( isset( $settings['wskey'] ) ) { $this->setWSKey( $settings['wskey'] ); }
+        if ( isset( $settings['user'] ) ) { $this->setUser( $settings['user'] ); }
+        if ( isset( $settings['agencyID'] ) ) {
+            $this->setAgencyID( $settings['agencyID'] );
+        } elseif ( $this->user ) {
+            $this->setAgencyID( $this->user->getAuthenticatingInstitutionID() );
+        }
     }
 
     /**
@@ -79,7 +93,23 @@ abstract class BaseRequest {
         return $xml->outputMemory();
     }
 
-    public function sendRequest( $body ) {
+    /**
+     *  sends a request to the NCIP server
+     *
+     *  @param  string    XML document body
+     *  @param  boolean   return the response as a StdObject (true) or XML string
+     *  @return mixed     the response, either as a StdObject or a string
+     */
+
+    public function sendRequest( $body, $asObject = true ) {
+        if ( !isset( $this->user ) ) {
+            throw new \Exception( 'No user defined' );
+        }
+
+        if ( !isset( $this->wskey ) ) {
+            throw new \Exception( 'No WSKey provided' );
+        }
+
         $url = $this->getRequestURL();
         $options = array( 'user' => $this->user );
         $headers = array(
@@ -96,13 +126,49 @@ abstract class BaseRequest {
                 'body' => $body
             ) );
 
-        } catch( Exception $e ) {}
+            $body = $resonse->getBody( true );
+
+            return $asObject ? $this->xmlToObject($body) : $body;
+
+        } catch( Exception $e ) {
+            // TODO
+        }
+    }
+
+    /**
+     *  setter for AgencyID
+     *
+     *  @param mixed
+     */
+
+    public function setAgencyID( $agencyID ) {
+        $this->agencyID = $agencyID;
+    }
+
+    /**
+     *  setter for Request User
+     *
+     *  @param OCLC\User
+     */
+
+    public function setUser( \OCLC\User $user ) {
+        $this->user = $user;
+    }
+
+    /**
+     *  setter for Request WSKey
+     *
+     *  @param OCLC\Auth\WSKey
+     */
+
+    public function setWSKey( \OCLC\Auth\WSKey $wskey ) {
+        $this->wskey = $wskey;
     }
 
     /**
      *  appends the <InitiationHeader> element to the document
      *
-     *  @param  XMLWriter object (mutable)
+     *  @param  XMLWriter object
      *  @return void
      */
 
@@ -138,6 +204,14 @@ abstract class BaseRequest {
         $xml->endElement();
     }
 
+    /**
+     *  append the common <ItemId> node to the document
+     *
+     *  @param XMLWriter    XML dom
+     *  @param mixed        item identifier value
+     *  @param mixed        (optional) item AgencyId (default is initialized AgencyId)
+     */
+
     protected function appendItemID( $xml, $itemID, $agencyID = null ) {
         if ( !$agencyID ) { $agencyID = $this->agencyID; }
 
@@ -146,6 +220,15 @@ abstract class BaseRequest {
             $xml->writeElement( 'ItemIdentifierValue', $itemID );
         $xml->endElement();
     }
+
+    /**
+     *  append the common <UserId> node to the document
+     *
+     *  @param XMLWriter    XML dom
+     *  @param mixed        User identifier value
+     *  @param mixed        (optional) user AgencyId (default is initialized AgencyId)
+     */
+
 
     protected function appendUserID( $xml, $userID, $agencyID = null ) {
         if ( !$agencyID ) { $agencyID = $this->agencyID; }
@@ -156,26 +239,53 @@ abstract class BaseRequest {
         $xml->endElement();
     }
 
+
     /**
-     *  constructs an XML document from an associative array
-     *  (taken from http://php.net/manual/en/ref.xmlwriter.php#89047)
+     *  parses an XML document into an object
      *
-     *  @param array    associative array
-     *
+     *  @param  string      the XML string to convert
+     *  @param  boolean     should the entire document be returned (if false, NCIPMessage field is parent)
+     *  @return StdClass
      */
 
-    protected function xmlFromArray( $input ) {
-        $xml = $this->xml;
-        if ( is_array($input) ) {
-            foreach( $input as $key => $val ) {
-                if ( is_array($val) ) {
-                    $xml->startElement( $key );
-                    $this->xmlFromArray( $val );
-                    $xml->endElement();
-                } else {
-                    $xml->setElement( $key, $val );
+    protected function xmlToObject( $output, $returnFullOutput = false ) {
+        if ( is_string( $output ) ) {
+            $xml = new XMLReader;
+            $xml->xml( $output );
+        }
+
+        $out = new StdClass();
+        $level = -1;
+        $currentNodeName = array();
+
+        while ( $xml->read() ) {
+            $nodeType = $xml->nodeType;
+
+            if ( $nodeType === XMLReader::END_ELEMENT ) {
+                unset( $currentNodeName[$level] );
+                $level--;
+                continue;
+            }
+
+            if ( $nodeType === XMLReader::ELEMENT ) {
+                $level++;
+                $currentNodeName[$level] = $xml->localName;
+                continue;
+            }
+
+            if ( $nodeType === XMLReader::TEXT ) {
+                $el = $out;
+                $lastEl = end( $currentNodeName );
+                foreach( $currentNodeName as $node ) { 
+                    if ( $node === $lastEl ) {
+                        $el->$node = $xml->value;
+                    } else {
+                        if ( !isset( $el->$node) ) { $el->$node = new StdClass(); }
+                        $el = $el->$node;
+                    }
                 }
             }
         }
+
+        return $returnFullOutput ? $out : $out->NCIPMessage;
     }
-}
