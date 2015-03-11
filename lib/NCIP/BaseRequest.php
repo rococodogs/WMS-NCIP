@@ -62,19 +62,29 @@ abstract class BaseRequest {
      *  @return string       XML output
      */
 
-    public function createRequest( $actionName, $callback = null ) {
+    public function createRequest( $actionName, $attributes = array(), $callback = null ) {
+        
+        // use default attributes?
+        if ( is_callable( $attributes ) && is_null( $callback ) ) {
+            $callback = $attributes;
+            $attributes = array(
+                'xmlns'              => NCIP::NISO_NCIP_SCHEME,
+                'xmlns:ncip'         => NCIP::NISO_NCIP_SCHEME,
+                'xmlns:xsi'          => NCIP::XML_SCHEMA_INSTANCE,
+                'ncip:version'       => NCIP::NCIP_VERSION,
+                'xsi:schemaLocation' => NCIP::XSI_SCHEMA_LOCATION
+            );
+        }
+
         $xml = new XMLWriter();
         $xml->openMemory();
         $xml->startDocument( '1.0', 'UTF-8' );
 
         // <NCIPMessage ...>
         $xml->startElement( 'NCIPMessage' );
-        $xml->writeAttribute( 'xmlns', NCIP::XMLNS );
-        $xml->writeAttribute( 'xmlns:ncip', NCIP::XMLNS_NCIP );
-        $xml->writeAttribute( 'xmlns:xsi', NCIP::XMLNS_XSI );
-        $xml->writeAttribute( 'ncip:version', NCIP::NCIP_VERSION );
-        $xml->writeAttribute( 'xsi:schemaLocation', NCIP::XSI_SCHEMA_LOCATION );
-
+        foreach( $attributes as $key => $val ) {
+            $xml->writeAttribute( $key, $val );
+        }
             // <CheckInItem>, for instance
             $xml->startElement( $actionName );
                 
@@ -179,7 +189,7 @@ abstract class BaseRequest {
             $xml->startElement( 'FromAgencyID' );
                 // <AgencyID ncip:Scheme='...'>
                 $xml->startElement( 'AgencyID' );
-                    $xml->writeAttribute( 'ncip:Scheme', NCIP::AGENCY_ID_SCHEME );
+                    $xml->writeAttribute( 'ncip:Scheme', NCIP::OCLC_AGENCY_ID_SCHEME );
                     $xml->text( $this->agencyID );
                 // </AgencyID>
                 $xml->endElement();
@@ -195,7 +205,7 @@ abstract class BaseRequest {
 
             // <ApplicationProfileType ncip:Scheme='...'>
             $xml->startElement( 'ApplicationProfileType' );
-                $xml->writeAttribute( 'ncip:Scheme', NCIP::APPLICATION_PROFILE_TYPE_SCHEME );
+                $xml->writeAttribute( 'ncip:Scheme', NCIP::OCLC_APPLICATION_PROFILE_SCHEME );
                 $xml->text( NCIP::APPLICATION_PROFILE_TYPE );
             // </ApplicationProfileType>
             $xml->endElement();

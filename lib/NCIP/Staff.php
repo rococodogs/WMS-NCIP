@@ -99,6 +99,8 @@ class Staff extends BaseRequest {
                 $xml->text( $opts['requestScope'] );
             $xml->endElement();
         });
+
+        return $this->sendRequest( $requestBody );
     }
 
     /**
@@ -114,6 +116,8 @@ class Staff extends BaseRequest {
         $requestBody = $this->createRequest( 'CheckInItem', function( $xml ) use ( $itemID, $agencyID ) {
             $this->appendItemID( $xml, $itemID, $agencyID );
         } );
+
+        return $this->sendRequest( $requestBody );
     }
 
     /**
@@ -144,6 +148,8 @@ class Staff extends BaseRequest {
             }
 
         } );
+
+        return $this->sendRequest( $requestBody );
     }
 
     /**
@@ -173,17 +179,19 @@ class Staff extends BaseRequest {
             $this->appendItemID( $xml, $itemID, $opts['itemAgencyID'] );
 
             $xml->startElement( 'RequestType' );
-                $xml->writeAttribute( 'ncip:Scheme', NCIP::REQUEST_TYPE_SCHEME );
+                $xml->writeAttribute( 'ncip:Scheme', NCIP::NISO_REQUEST_TYPE_SCHEME );
                 $xml->text( $opts['requestType'] );
             $xml->endElement();
 
             $xml->startElement( 'RequestScopeType' );
-                $xml->writeAttribute( 'ncip:Scheme', NCIP::REQUEST_SCOPE_TYPE_SCHEME );
+                $xml->writeAttribute( 'ncip:Scheme', NCIP::NISO_REQUEST_SCOPE_TYPE_SCHEME );
                 $xml->text( $opts['requestScope'] );
             $xml->endElement();
 
             $xml->writeElement( 'PickupLocation', $opts['pickupLocation'] );
         } );
+
+        return $this->sendRequest( $requestBody );
     }
 
     /**
@@ -201,7 +209,7 @@ class Staff extends BaseRequest {
 
     public function requestBibItem( $userID, $bib, $opts = array() ) {
         $opts = array_merge( $opts, array(
-            'requestScope' => NCIP:: REQUEST_SCOPE_TYPE_BIBLIOGRAPHIC
+            'requestScope' => NCIP::REQUEST_SCOPE_TYPE_BIBLIOGRAPHIC
         ) );
 
         return $this->requestItem( $userID, $bib, $opts );
